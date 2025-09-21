@@ -1,6 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import type { Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeHighlight from 'rehype-highlight'
 
 type ChatMessage = {
     role: 'user' | 'assistant'
@@ -10,6 +14,64 @@ type ChatMessage = {
 const STORAGE_KEY = 'chat:session:v1'
 
 export default function Home() {
+    const markdownComponents: Components = {
+        code({ className, children, ...props }) {
+            const codeText = String(children).replace(/\n$/, '')
+            const isInline =
+                !/(^|\s)language-[\w-]+/.test(className || '') &&
+                !codeText.includes('\n')
+            if (isInline) {
+                return (
+                    <code
+                        className="rounded bg-gray-200 dark:bg-gray-700 px-1 py-0.5 text-[0.85em]"
+                        {...props}
+                    >
+                        {children}
+                    </code>
+                )
+            }
+            return (
+                <div className="relative group">
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            try {
+                                await navigator.clipboard.writeText(codeText)
+                            } catch {}
+                        }}
+                        className="absolute top-2 right-2 rounded-md border px-2 py-1 text-xs bg-white/80 dark:bg-black/50 hover:bg-white dark:hover:bg-black text-gray-700 dark:text-gray-200 opacity-0 group-hover:opacity-100 transition"
+                    >
+                        복사
+                    </button>
+                    <pre className="overflow-x-auto rounded-md bg-gray-950 text-gray-100 p-3 text-[0.9em]">
+                        <code className={className}>{codeText}</code>
+                    </pre>
+                </div>
+            )
+        },
+        a({ href, children, ...props }) {
+            return (
+                <a
+                    href={href as string}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline"
+                    {...props}
+                >
+                    {children}
+                </a>
+            )
+        },
+        table({ children }) {
+            return (
+                <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-sm">
+                        {children}
+                    </table>
+                </div>
+            )
+        }
+    }
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
@@ -148,26 +210,54 @@ export default function Home() {
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        {messages.map((m, i) => (
-                            <div
-                                key={i}
-                                className={
-                                    m.role === 'user'
-                                        ? 'text-right'
-                                        : 'text-left'
-                                }
-                            >
+                        {messages.map((m, i) => {
+                            const isLastAssistant =
+                                m.role === 'assistant' &&
+                                i === messages.length - 1 &&
+                                loading
+                            return (
                                 <div
+                                    key={i}
                                     className={
                                         m.role === 'user'
-                                            ? 'inline-block rounded-2xl px-4 py-2 bg-blue-600 text-white'
-                                            : 'inline-block rounded-2xl px-4 py-2 bg-gray-100 dark:bg-gray-800'
+                                            ? 'text-right'
+                                            : 'text-left'
                                     }
                                 >
-                                    {m.content}
+                                    <div
+                                        className={
+                                            m.role === 'user'
+                                                ? 'inline-block rounded-2xl px-4 py-2 bg-blue-600 text-white whitespace-pre-wrap break-words'
+                                                : 'inline-block rounded-2xl px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 max-w-full'
+                                        }
+                                        style={{ wordBreak: 'break-word' }}
+                                    >
+                                        {m.role === 'assistant' ? (
+                                            <div className="markdown-body leading-relaxed text-sm">
+                                                <ReactMarkdown
+                                                    remarkPlugins={[remarkGfm]}
+                                                    rehypePlugins={[
+                                                        rehypeHighlight
+                                                    ]}
+                                                    components={
+                                                        markdownComponents
+                                                    }
+                                                >
+                                                    {m.content}
+                                                </ReactMarkdown>
+                                                {isLastAssistant && (
+                                                    <span className="inline-block w-2 align-baseline animate-pulse">
+                                                        ▍
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            m.content
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            )
+                        })}
                         <div ref={endRef} />
                     </div>
                 )}
