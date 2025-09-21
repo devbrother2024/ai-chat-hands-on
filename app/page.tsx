@@ -10,20 +10,25 @@ type ChatMessage = {
 const STORAGE_KEY = 'chat:session:v1'
 
 export default function Home() {
-    const [messages, setMessages] = useState<ChatMessage[]>(() => {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY)
-            return raw ? (JSON.parse(raw) as ChatMessage[]) : []
-        } catch {
-            return []
-        }
-    })
+    const [messages, setMessages] = useState<ChatMessage[]>([])
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
     const abortRef = useRef<AbortController | null>(null)
     const endRef = useRef<HTMLDivElement | null>(null)
+    const hasLoadedRef = useRef(false)
 
+    // Load persisted messages only on client after mount to avoid SSR mismatch
     useEffect(() => {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY)
+            if (raw) setMessages(JSON.parse(raw) as ChatMessage[])
+        } catch {}
+        hasLoadedRef.current = true
+    }, [])
+
+    // Persist messages after initial load is done
+    useEffect(() => {
+        if (!hasLoadedRef.current) return
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(messages))
         } catch {}

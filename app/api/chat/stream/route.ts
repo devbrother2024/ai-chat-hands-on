@@ -50,7 +50,7 @@ export async function GET(req: Request) {
                 })
 
                 for await (const chunk of response) {
-                    const text = (chunk as any)?.text ?? ''
+                    const text = chunk.text ?? ''
                     if (text) {
                         controller.enqueue(
                             sseEncode({ type: 'text', delta: text })
@@ -60,8 +60,11 @@ export async function GET(req: Request) {
 
                 controller.enqueue(sseEncode({ type: 'done' }))
                 controller.close()
-            } catch (err: any) {
-                const status = err?.status ?? 500
+            } catch (err: unknown) {
+                const status =
+                    typeof err === 'object' && err && 'status' in err
+                        ? (err as { status?: number }).status ?? 500
+                        : 500
                 let code = 'INTERNAL_ERROR'
                 if (status === 401 || status === 403) code = 'UNAUTHORIZED'
                 else if (status === 429) code = 'RATE_LIMIT'
@@ -72,7 +75,9 @@ export async function GET(req: Request) {
                         type: 'error',
                         code,
                         message:
-                            err?.message || '알 수 없는 오류가 발생했습니다.'
+                            typeof err === 'object' && err && 'message' in err
+                                ? String((err as { message?: unknown }).message)
+                                : '알 수 없는 오류가 발생했습니다.'
                     })
                 )
                 controller.enqueue(sseEncode({ type: 'done' }))
