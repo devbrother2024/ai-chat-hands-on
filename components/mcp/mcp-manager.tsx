@@ -18,10 +18,6 @@ import { MCPServerDetails } from './mcp-server-details'
 import { MCPServerStorage } from '@/lib/mcp/storage'
 import { MCPServerConfig, ConnectedMCPServer } from '@/lib/types/mcp'
 import { mcpClientManager } from '@/lib/mcp/client'
-import {
-    getConnectedServerIds,
-    getConnectedServerInfo
-} from '@/lib/actions/mcp-actions'
 import { useMCP } from '@/lib/contexts/mcp-context'
 import { toast } from '@/components/ui/use-toast'
 
@@ -46,7 +42,7 @@ export function MCPManager() {
 
         // 컨텍스트에서 연결 상태 새로고침
         refreshConnections()
-    }, [])
+    }, [refreshConnections])
 
     const handleAddServer = () => {
         setEditingServer(null)

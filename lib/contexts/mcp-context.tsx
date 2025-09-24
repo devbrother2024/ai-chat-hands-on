@@ -9,10 +9,7 @@ import {
     ReactNode
 } from 'react'
 import { ConnectedMCPServer } from '@/lib/types/mcp'
-import {
-    getConnectedServerIds,
-    getConnectedServerInfo
-} from '@/lib/actions/mcp-actions'
+import { mcpClientManager } from '@/lib/mcp/client'
 import { MCPServerStorage } from '@/lib/mcp/storage'
 
 interface MCPContextType {
@@ -30,10 +27,12 @@ export function MCPProvider({ children }: { children: ReactNode }) {
 
     const refreshConnections = useCallback(async () => {
         try {
-            const connectedIds = await getConnectedServerIds()
+            const connectedIds = await mcpClientManager.getConnectedServerIds()
             const connectedServersPromises = connectedIds.map(
                 async serverId => {
-                    const serverInfo = await getConnectedServerInfo(serverId)
+                    const serverInfo = await mcpClientManager.getServerInfo(
+                        serverId
+                    )
                     if (serverInfo) {
                         const actualConfig =
                             MCPServerStorage.getServer(serverId)
@@ -60,7 +59,7 @@ export function MCPProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         refreshConnections()
-    }, [])
+    }, [refreshConnections])
 
     return (
         <MCPContext.Provider
