@@ -6,6 +6,7 @@ import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { MCPManager } from '@/components/mcp/mcp-manager'
+import { MCPProvider } from '@/lib/contexts/mcp-context'
 import { Button } from '@/components/ui/button'
 import { MessageSquare, Settings } from 'lucide-react'
 
@@ -199,142 +200,148 @@ export default function Home() {
     }
 
     return (
-        <div className="min-h-screen flex flex-col mx-auto max-w-6xl p-4 gap-4">
-            <header className="flex items-center justify-between">
-                <h1 className="text-xl font-semibold">AI 채팅 애플리케이션</h1>
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant={
-                                currentTab === 'chat' ? 'default' : 'outline'
-                            }
-                            size="sm"
-                            onClick={() => setCurrentTab('chat')}
-                        >
-                            <MessageSquare className="w-4 h-4 mr-2" />
-                            채팅
-                        </Button>
-                        <Button
-                            variant={
-                                currentTab === 'mcp' ? 'default' : 'outline'
-                            }
-                            size="sm"
-                            onClick={() => setCurrentTab('mcp')}
-                        >
-                            <Settings className="w-4 h-4 mr-2" />
-                            MCP 서버 관리
-                        </Button>
-                    </div>
-                    {currentTab === 'chat' && (
-                        <div className="text-xs text-gray-500">
-                            모델: gemini-2.0-flash-001
+        <MCPProvider>
+            <div className="min-h-screen flex flex-col mx-auto max-w-6xl p-4 gap-4">
+                <header className="flex items-center justify-between">
+                    <h1 className="text-xl font-semibold">
+                        AI 채팅 애플리케이션
+                    </h1>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant={
+                                    currentTab === 'chat'
+                                        ? 'default'
+                                        : 'outline'
+                                }
+                                size="sm"
+                                onClick={() => setCurrentTab('chat')}
+                            >
+                                <MessageSquare className="w-4 h-4 mr-2" />
+                                채팅
+                            </Button>
+                            <Button
+                                variant={
+                                    currentTab === 'mcp' ? 'default' : 'outline'
+                                }
+                                size="sm"
+                                onClick={() => setCurrentTab('mcp')}
+                            >
+                                <Settings className="w-4 h-4 mr-2" />
+                                MCP 서버 관리
+                            </Button>
                         </div>
-                    )}
-                </div>
-            </header>
-
-            {currentTab === 'chat' ? (
-                <>
-                    <main className="flex-1 overflow-y-auto rounded-md border p-4 bg-white/50 dark:bg-black/20">
-                        {messages.length === 0 ? (
-                            <div className="text-sm text-gray-500">
-                                질문을 입력해 대화를 시작하세요.
+                        {currentTab === 'chat' && (
+                            <div className="text-xs text-gray-500">
+                                모델: gemini-2.0-flash-001
                             </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {messages.map((m, i) => {
-                                    const isLastAssistant =
-                                        m.role === 'assistant' &&
-                                        i === messages.length - 1 &&
-                                        loading
-                                    return (
-                                        <div
-                                            key={i}
-                                            className={
-                                                m.role === 'user'
-                                                    ? 'text-right'
-                                                    : 'text-left'
-                                            }
-                                        >
+                        )}
+                    </div>
+                </header>
+
+                {currentTab === 'chat' ? (
+                    <>
+                        <main className="flex-1 overflow-y-auto rounded-md border p-4 bg-white/50 dark:bg-black/20">
+                            {messages.length === 0 ? (
+                                <div className="text-sm text-gray-500">
+                                    질문을 입력해 대화를 시작하세요.
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {messages.map((m, i) => {
+                                        const isLastAssistant =
+                                            m.role === 'assistant' &&
+                                            i === messages.length - 1 &&
+                                            loading
+                                        return (
                                             <div
+                                                key={i}
                                                 className={
                                                     m.role === 'user'
-                                                        ? 'inline-block rounded-2xl px-4 py-2 bg-blue-600 text-white whitespace-pre-wrap break-words'
-                                                        : 'inline-block rounded-2xl px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 max-w-full'
+                                                        ? 'text-right'
+                                                        : 'text-left'
                                                 }
-                                                style={{
-                                                    wordBreak: 'break-word'
-                                                }}
                                             >
-                                                {m.role === 'assistant' ? (
-                                                    <div className="markdown-body leading-relaxed text-sm">
-                                                        <ReactMarkdown
-                                                            remarkPlugins={[
-                                                                remarkGfm
-                                                            ]}
-                                                            rehypePlugins={[
-                                                                rehypeHighlight
-                                                            ]}
-                                                            components={
-                                                                markdownComponents
-                                                            }
-                                                        >
-                                                            {m.content}
-                                                        </ReactMarkdown>
-                                                        {isLastAssistant && (
-                                                            <span className="inline-block w-2 align-baseline animate-pulse">
-                                                                ▍
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    m.content
-                                                )}
+                                                <div
+                                                    className={
+                                                        m.role === 'user'
+                                                            ? 'inline-block rounded-2xl px-4 py-2 bg-blue-600 text-white whitespace-pre-wrap break-words'
+                                                            : 'inline-block rounded-2xl px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 max-w-full'
+                                                    }
+                                                    style={{
+                                                        wordBreak: 'break-word'
+                                                    }}
+                                                >
+                                                    {m.role === 'assistant' ? (
+                                                        <div className="markdown-body leading-relaxed text-sm">
+                                                            <ReactMarkdown
+                                                                remarkPlugins={[
+                                                                    remarkGfm
+                                                                ]}
+                                                                rehypePlugins={[
+                                                                    rehypeHighlight
+                                                                ]}
+                                                                components={
+                                                                    markdownComponents
+                                                                }
+                                                            >
+                                                                {m.content}
+                                                            </ReactMarkdown>
+                                                            {isLastAssistant && (
+                                                                <span className="inline-block w-2 align-baseline animate-pulse">
+                                                                    ▍
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        m.content
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    )
-                                })}
-                                <div ref={endRef} />
-                            </div>
-                        )}
-                    </main>
+                                        )
+                                    })}
+                                    <div ref={endRef} />
+                                </div>
+                            )}
+                        </main>
 
-                    <form onSubmit={handleSend} className="flex gap-2">
-                        <input
-                            className="flex-1 rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="메시지를 입력하세요..."
-                            value={input}
-                            onChange={e => setInput(e.target.value)}
-                            disabled={loading}
-                        />
-                        {loading ? (
-                            <button
-                                type="button"
-                                onClick={handleStop}
-                                className="px-4 py-2 rounded-md bg-red-600 text-white"
-                            >
-                                중지
-                            </button>
-                        ) : (
-                            <button
-                                type="submit"
-                                disabled={!canSend}
-                                className="px-4 py-2 rounded-md bg-blue-600 text-white disabled:opacity-50"
-                            >
-                                전송
-                            </button>
-                        )}
-                    </form>
-                    <p className="text-xs text-gray-500">
-                        이 세션은 localStorage에 임시 저장됩니다. 공용 PC에서는
-                        민감정보 입력에 유의하세요.
-                    </p>
-                </>
-            ) : (
-                <div className="flex-1 overflow-y-auto">
-                    <MCPManager />
-                </div>
-            )}
-        </div>
+                        <form onSubmit={handleSend} className="flex gap-2">
+                            <input
+                                className="flex-1 rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="메시지를 입력하세요..."
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                disabled={loading}
+                            />
+                            {loading ? (
+                                <button
+                                    type="button"
+                                    onClick={handleStop}
+                                    className="px-4 py-2 rounded-md bg-red-600 text-white"
+                                >
+                                    중지
+                                </button>
+                            ) : (
+                                <button
+                                    type="submit"
+                                    disabled={!canSend}
+                                    className="px-4 py-2 rounded-md bg-blue-600 text-white disabled:opacity-50"
+                                >
+                                    전송
+                                </button>
+                            )}
+                        </form>
+                        <p className="text-xs text-gray-500">
+                            이 세션은 localStorage에 임시 저장됩니다. 공용
+                            PC에서는 민감정보 입력에 유의하세요.
+                        </p>
+                    </>
+                ) : (
+                    <div className="flex-1 overflow-y-auto">
+                        <MCPManager />
+                    </div>
+                )}
+            </div>
+        </MCPProvider>
     )
 }

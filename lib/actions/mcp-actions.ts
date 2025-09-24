@@ -255,3 +255,60 @@ export async function getConnectedServerIds(): Promise<string[]> {
 export async function isServerConnected(serverId: string): Promise<boolean> {
     return connectedClients.has(serverId)
 }
+
+export async function getConnectedServerInfo(
+    serverId: string
+): Promise<ConnectedMCPServer | null> {
+    const connection = connectedClients.get(serverId)
+    if (!connection) {
+        return null
+    }
+
+    // 연결이 살아있는지 확인하기 위해 간단한 요청 시도
+    try {
+        const [toolsResult, promptsResult, resourcesResult] =
+            await Promise.allSettled([
+                connection.client.listTools(),
+                connection.client.listPrompts(),
+                connection.client.listResources()
+            ])
+
+        const tools =
+            toolsResult.status === 'fulfilled'
+                ? (toolsResult.value.tools as MCPTool[]) || []
+                : []
+        const prompts =
+            promptsResult.status === 'fulfilled'
+                ? (promptsResult.value.prompts as MCPPrompt[]) || []
+                : []
+        const resources =
+            resourcesResult.status === 'fulfilled'
+                ? (resourcesResult.value.resources as MCPResource[]) || []
+                : []
+
+        // 저장된 설정을 가져오기 위해 임시로 빈 설정 반환 (실제로는 저장소에서 가져와야 함)
+        return {
+            config: {
+                id: serverId,
+                name: 'Connected Server',
+                transport: 'stdio' as const,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                isActive: true
+            },
+            info: {
+                name: 'MCP Server',
+                version: '1.0.0',
+                capabilities: {}
+            },
+            tools,
+            prompts,
+            resources,
+            isConnected: true
+        }
+    } catch (error) {
+        // 연결이 끊어진 경우 정리
+        connectedClients.delete(serverId)
+        return null
+    }
+}

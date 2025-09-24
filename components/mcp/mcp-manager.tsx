@@ -18,15 +18,19 @@ import { MCPServerDetails } from './mcp-server-details'
 import { MCPServerStorage } from '@/lib/mcp/storage'
 import { MCPServerConfig, ConnectedMCPServer } from '@/lib/types/mcp'
 import { mcpClientManager } from '@/lib/mcp/client'
+import {
+    getConnectedServerIds,
+    getConnectedServerInfo
+} from '@/lib/actions/mcp-actions'
+import { useMCP } from '@/lib/contexts/mcp-context'
 import { toast } from '@/components/ui/use-toast'
 
 type View = 'list' | 'form' | 'details'
 
 export function MCPManager() {
+    const { connectedServers, setConnectedServers, refreshConnections } =
+        useMCP()
     const [servers, setServers] = useState<MCPServerConfig[]>([])
-    const [connectedServers, setConnectedServers] = useState<
-        ConnectedMCPServer[]
-    >([])
     const [currentView, setCurrentView] = useState<View>('list')
     const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(
         null
@@ -39,6 +43,9 @@ export function MCPManager() {
     useEffect(() => {
         const loadedServers = MCPServerStorage.getAllServers()
         setServers(loadedServers)
+
+        // 컨텍스트에서 연결 상태 새로고침
+        refreshConnections()
     }, [])
 
     const handleAddServer = () => {
@@ -113,10 +120,10 @@ export function MCPManager() {
             console.log(`${server.name} 서버에 연결을 시도합니다...`)
             const connectedServer = await mcpClientManager.connectServer(server)
 
-            setConnectedServers(prev => {
-                const filtered = prev.filter(cs => cs.config.id !== server.id)
-                return [...filtered, connectedServer]
-            })
+            const updatedServers = connectedServers.filter(
+                cs => cs.config.id !== server.id
+            )
+            setConnectedServers([...updatedServers, connectedServer])
 
             MCPServerStorage.updateServerStatus(
                 server.id,
@@ -151,8 +158,8 @@ export function MCPManager() {
         try {
             await mcpClientManager.disconnectServer(serverId)
 
-            setConnectedServers(prev =>
-                prev.filter(cs => cs.config.id !== serverId)
+            setConnectedServers(
+                connectedServers.filter(cs => cs.config.id !== serverId)
             )
 
             MCPServerStorage.updateServerStatus(serverId, false)
