@@ -457,8 +457,20 @@ export function MCPServerDetails({
                     <div>
                         <span className="font-medium">전송:</span>{' '}
                         {server.config.transport.toUpperCase()}
+                        {server.config.transport === 'http' &&
+                            ' (auto-fallback)'}
                     </div>
                 </div>
+                {(server.config.transport === 'http' ||
+                    server.config.transport === 'sse') &&
+                    server.config.url && (
+                        <div className="mt-2 text-sm">
+                            <span className="font-medium">URL:</span>{' '}
+                            <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">
+                                {server.config.url}
+                            </code>
+                        </div>
+                    )}
             </CardHeader>
             <CardContent>
                 <Tabs defaultValue="tools" className="w-full">

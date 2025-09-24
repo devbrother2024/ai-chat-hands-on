@@ -166,8 +166,8 @@ export function MCPServerForm({
                                 <SelectItem value="sse">
                                     SSE (Server-Sent Events)
                                 </SelectItem>
-                                <SelectItem value="http" disabled>
-                                    HTTP (준비중)
+                                <SelectItem value="http">
+                                    HTTP (Streamable HTTP with SSE fallback)
                                 </SelectItem>
                             </SelectContent>
                         </Select>

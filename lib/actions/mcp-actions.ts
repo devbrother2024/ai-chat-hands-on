@@ -3,6 +3,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import {
     MCPServerConfig,
@@ -61,14 +62,49 @@ export async function connectToMCPServer(
                 break
 
             case 'http':
-                throw new Error('HTTP 전송 방식은 아직 지원되지 않습니다')
+                if (!config.url) {
+                    throw new Error('HTTP 전송 방식에는 URL이 필요합니다')
+                }
+
+                const baseUrl = new URL(config.url)
+
+                // StreamableHTTP 방식 먼저 시도
+                transport = new StreamableHTTPClientTransport(baseUrl)
+                console.log('StreamableHTTP 전송 방식으로 연결 시도 중...')
+                break
 
             default:
                 throw new Error(`지원되지 않는 전송 방식: ${config.transport}`)
         }
 
-        await client.connect(transport)
-        console.log(`✅ MCP 서버 연결 성공: ${config.name} (${config.id})`)
+        try {
+            await client.connect(transport)
+            console.log(`✅ MCP 서버 연결 성공: ${config.name} (${config.id})`)
+        } catch (error) {
+            // HTTP 연결 실패 시 SSE로 폴백 시도
+            if (config.transport === 'http' && config.url) {
+                console.log(
+                    'StreamableHTTP 연결 실패, SSE 전송 방식으로 폴백 중...',
+                    error
+                )
+
+                // 기존 transport 정리
+                try {
+                    await transport.close()
+                } catch {
+                    // 정리 중 오류는 무시
+                }
+
+                // SSE transport로 재시도
+                transport = new SSEClientTransport(new URL(config.url))
+                await client.connect(transport)
+                console.log(
+                    `✅ MCP 서버 SSE 폴백 연결 성공: ${config.name} (${config.id})`
+                )
+            } else {
+                throw error
+            }
+        }
 
         // 클라이언트와 전송 객체를 전역 저장소에 저장
         connectedClients.set(config.id, { client, transport })

@@ -55,6 +55,7 @@ pnpm dev
 
 -   **STDIO**: 로컬 명령어 실행 (예: `npx -y @philschmid/weather-mcp`)
 -   **SSE**: Server-Sent Events 기반 웹 서버 연결
+-   **HTTP**: Streamable HTTP 연결 (SSE 자동 폴백 지원)
 
 ### 3. MCP 도구 활성화
 
@@ -81,17 +82,25 @@ npx -y @modelcontextprotocol/server-filesystem
 ```plaintext
 ai-chat-hands-on/
 ├── app/
-│   ├── api/chat/stream/          # 스트리밍 API
-│   ├── api/chat/execute-function/ # 함수 실행 API
+│   ├── api/
+│   │   ├── chat/stream/          # 스트리밍 API
+│   │   ├── chat/execute-function/ # 함수 실행 API
+│   │   └── mcp/                  # MCP API Routes
+│   │       ├── connect/          # 서버 연결
+│   │       ├── disconnect/       # 서버 연결 해제
+│   │       ├── tool/             # 도구 호출
+│   │       ├── prompt/           # 프롬프트 실행
+│   │       ├── resource/         # 리소스 읽기
+│   │       └── status/           # 연결 상태 확인
 │   └── page.tsx                  # 메인 페이지
 ├── components/
 │   ├── chat/                     # 채팅 관련 컴포넌트
 │   ├── mcp/                      # MCP 관리 컴포넌트
 │   └── ui/                       # 공통 UI 컴포넌트
 ├── lib/
-│   ├── actions/                  # 서버 액션
+│   ├── actions/                  # MCP 서버 로직 (Server Actions에서 변경됨)
 │   ├── contexts/                 # React 컨텍스트
-│   ├── mcp/                      # MCP 클라이언트
+│   ├── mcp/                      # MCP 클라이언트 (API Routes 기반)
 │   ├── types/                    # 타입 정의
 │   └── utils/                    # 유틸리티 함수
 ```
