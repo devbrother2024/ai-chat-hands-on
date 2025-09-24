@@ -13,12 +13,7 @@ import {
     MCPPrompt,
     MCPResource
 } from '@/lib/types/mcp'
-
-// 서버에서 연결된 클라이언트들을 관리하는 맵
-const connectedClients = new Map<
-    string,
-    { client: Client; transport: Transport }
->()
+import { connectedClients, getConnectionStatus } from '@/lib/mcp/connections'
 
 export async function connectToMCPServer(
     config: MCPServerConfig
@@ -73,9 +68,18 @@ export async function connectToMCPServer(
         }
 
         await client.connect(transport)
+        console.log(`✅ MCP 서버 연결 성공: ${config.name} (${config.id})`)
 
-        // 클라이언트와 전송 객체 저장
+        // 클라이언트와 전송 객체를 전역 저장소에 저장
         connectedClients.set(config.id, { client, transport })
+        console.log(
+            `📝 연결된 MCP 서버 목록: [${Array.from(
+                connectedClients.keys()
+            ).join(', ')}]`
+        )
+
+        // 전역 연결 상태 확인
+        getConnectionStatus()
 
         // 서버 정보 및 기능 조회
         const [toolsResult, promptsResult, resourcesResult] =
@@ -98,6 +102,19 @@ export async function connectToMCPServer(
                 ? (resourcesResult.value.resources as MCPResource[]) || []
                 : []
 
+        console.log(
+            `🔧 ${config.name} 도구 목록 (${tools.length}개):`,
+            tools.map(t => t.name)
+        )
+        console.log(
+            `📋 ${config.name} 프롬프트 목록 (${prompts.length}개):`,
+            prompts.map(p => p.name)
+        )
+        console.log(
+            `📦 ${config.name} 리소스 목록 (${resources.length}개):`,
+            resources.map(r => r.name || r.uri)
+        )
+
         return {
             config,
             info: {
@@ -115,6 +132,9 @@ export async function connectToMCPServer(
             error instanceof Error
                 ? error.message
                 : '알 수 없는 오류가 발생했습니다'
+
+        console.error(`❌ MCP 서버 연결 실패: ${config.name} (${config.id})`)
+        console.error(`오류 내용:`, error)
 
         return {
             config,
@@ -139,11 +159,19 @@ export async function disconnectFromMCPServer(serverId: string): Promise<void> {
         try {
             await connection.client.close()
             await connection.transport.close()
+            console.log(`🔌 MCP 서버 연결 해제: ${serverId}`)
         } catch (error) {
-            console.error(`Failed to disconnect server ${serverId}:`, error)
+            console.error(`❌ MCP 서버 연결 해제 실패: ${serverId}`, error)
         }
 
         connectedClients.delete(serverId)
+        console.log(
+            `📝 현재 연결된 MCP 서버 목록: [${Array.from(
+                connectedClients.keys()
+            ).join(', ')}]`
+        )
+    } else {
+        console.warn(`⚠️ 연결되지 않은 MCP 서버 ID: ${serverId}`)
     }
 }
 
@@ -154,14 +182,21 @@ export async function callMCPTool(
     const connection = connectedClients.get(serverId)
 
     if (!connection) {
+        console.error(`❌ MCP 서버에 연결되지 않음: ${serverId}`)
         throw new Error('서버에 연결되지 않았습니다')
     }
+
+    console.log(`🔧 MCP 도구 호출 시작: ${toolCall.name} (서버: ${serverId})`)
+    console.log(`📝 함수 매개변수:`, toolCall.arguments)
 
     try {
         const result = await connection.client.callTool({
             name: toolCall.name,
             arguments: toolCall.arguments
         })
+
+        console.log(`✅ MCP 도구 호출 성공: ${toolCall.name}`)
+        console.log(`📋 결과:`, result)
 
         const content = Array.isArray(result.content) ? result.content : []
         return {
@@ -172,6 +207,10 @@ export async function callMCPTool(
             isError: Boolean(result.isError)
         }
     } catch (error) {
+        console.error(
+            `❌ MCP 도구 호출 실패: ${toolCall.name} (서버: ${serverId})`
+        )
+        console.error(`오류 내용:`, error)
         throw new Error(
             `도구 호출 실패: ${
                 error instanceof Error ? error.message : '알 수 없는 오류'
@@ -306,7 +345,7 @@ export async function getConnectedServerInfo(
             resources,
             isConnected: true
         }
-    } catch (error) {
+    } catch {
         // 연결이 끊어진 경우 정리
         connectedClients.delete(serverId)
         return null

@@ -1,4 +1,9 @@
-import { GoogleGenAI } from '@google/genai'
+import { GoogleGenAI, mcpToTool } from '@google/genai'
+import {
+    connectedClients,
+    getConnectionStatus,
+    validateAllConnections
+} from '@/lib/mcp/connections'
 
 export const runtime = 'nodejs'
 
@@ -10,6 +15,8 @@ function sseEncode(data: unknown): Uint8Array {
 export async function GET(req: Request) {
     const url = new URL(req.url)
     const prompt = url.searchParams.get('q')?.trim()
+    const enabledMCPServers =
+        url.searchParams.get('mcpServers')?.split(',').filter(Boolean) || []
     const model = process.env.LLM_MODEL || 'gemini-2.0-flash-001'
     const apiKey = process.env.GEMINI_API_KEY
 
@@ -44,12 +51,116 @@ export async function GET(req: Request) {
                 }
 
                 const ai = new GoogleGenAI({ apiKey })
+
+                // MCP 도구 준비
+                const tools = []
+                const enabledClients = []
+
+                console.log(
+                    `🔍 MCP 서버 활성화 요청: [${enabledMCPServers.join(', ')}]`
+                )
+
+                // 전역 연결 상태 확인 및 검증
+                getConnectionStatus()
+                const validConnections = await validateAllConnections()
+                console.log(
+                    `📊 현재 연결된 서버: [${Array.from(
+                        connectedClients.keys()
+                    ).join(', ')}]`
+                )
+
+                // 유효한 연결만 사용
+                const validEnabledServers = enabledMCPServers.filter(id =>
+                    validConnections.includes(id)
+                )
+                console.log(
+                    `🎯 유효하고 활성화된 서버: [${validEnabledServers.join(
+                        ', '
+                    )}]`
+                )
+
+                for (const serverId of validEnabledServers) {
+                    const connection = connectedClients.get(serverId)
+                    if (connection) {
+                        try {
+                            tools.push(mcpToTool(connection.client))
+                            enabledClients.push(serverId)
+                            console.log(`✅ MCP 도구 변환 성공: ${serverId}`)
+                        } catch (error) {
+                            console.warn(
+                                `❌ MCP 서버 ${serverId} 도구 변환 실패:`,
+                                error
+                            )
+                        }
+                    } else {
+                        console.warn(`⚠️ MCP 서버 ${serverId}가 연결되지 않음`)
+                    }
+                }
+
+                // 무효한 서버 요청에 대한 경고
+                const invalidServers = enabledMCPServers.filter(
+                    id => !validConnections.includes(id)
+                )
+                if (invalidServers.length > 0) {
+                    console.warn(
+                        `⚠️ 요청되었지만 연결되지 않은 서버: [${invalidServers.join(
+                            ', '
+                        )}]`
+                    )
+                }
+
+                // 활성화된 MCP 서버 정보 전송
+                if (enabledClients.length > 0) {
+                    console.log(
+                        `🚀 AI에 연결된 MCP 도구: ${
+                            tools.length
+                        }개 (서버: [${enabledClients.join(', ')}])`
+                    )
+                    controller.enqueue(
+                        sseEncode({
+                            type: 'mcp_info',
+                            enabledServers: enabledClients
+                        })
+                    )
+                } else {
+                    console.log(`ℹ️ 활성화된 MCP 서버가 없음`)
+                }
+
                 const response = await ai.models.generateContentStream({
                     model,
-                    contents: prompt
+                    contents: prompt,
+                    config: tools.length > 0 ? { tools } : undefined
                 })
 
                 for await (const chunk of response) {
+                    // 함수 호출 처리
+                    if (chunk.functionCalls) {
+                        console.log(
+                            `🔧 AI가 함수 호출 요청: ${chunk.functionCalls.length}개`
+                        )
+                        chunk.functionCalls.forEach(
+                            (
+                                call: {
+                                    name?: string
+                                    args?: Record<string, unknown>
+                                },
+                                index: number
+                            ) => {
+                                console.log(
+                                    `  ${index + 1}. ${
+                                        call.name || '이름없음'
+                                    }(${JSON.stringify(call.args || {})})`
+                                )
+                            }
+                        )
+                        controller.enqueue(
+                            sseEncode({
+                                type: 'function_calls',
+                                calls: chunk.functionCalls
+                            })
+                        )
+                    }
+
                     const text = chunk.text ?? ''
                     if (text) {
                         controller.enqueue(

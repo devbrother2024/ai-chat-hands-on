@@ -7,12 +7,33 @@ import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { MCPManager } from '@/components/mcp/mcp-manager'
 import { MCPProvider } from '@/lib/contexts/mcp-context'
+import { MCPToolsPanel } from '@/components/chat/mcp-tools-panel'
+import { FunctionCallResult } from '@/components/chat/function-call-result'
+import { MCPDebugInfo } from '@/components/chat/mcp-debug-info'
 import { Button } from '@/components/ui/button'
 import { MessageSquare, Settings } from 'lucide-react'
+import { executeFunctionCalls } from '@/lib/utils/function-execution'
+
+type FunctionCall = {
+    id?: string
+    name?: string
+    args?: Record<string, unknown>
+}
 
 type ChatMessage = {
     role: 'user' | 'assistant'
     content: string
+    functionCalls?: FunctionCall[]
+    functionResults?: Record<
+        string,
+        {
+            content?: Array<{
+                type: string
+                text?: string
+            }>
+            isError?: boolean
+        }
+    >
 }
 
 const STORAGE_KEY = 'chat:session:v1'
@@ -80,6 +101,7 @@ export default function Home() {
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
+    const [enabledMCPServers, setEnabledMCPServers] = useState<string[]>([])
     const abortRef = useRef<AbortController | null>(null)
     const endRef = useRef<HTMLDivElement | null>(null)
     const hasLoadedRef = useRef(false)
@@ -110,6 +132,16 @@ export default function Home() {
         [input, loading]
     )
 
+    const handleToggleMCPServer = (serverId: string, enabled: boolean) => {
+        setEnabledMCPServers(prev => {
+            if (enabled) {
+                return prev.includes(serverId) ? prev : [...prev, serverId]
+            } else {
+                return prev.filter(id => id !== serverId)
+            }
+        })
+    }
+
     async function handleSend(e?: React.FormEvent) {
         e?.preventDefault()
         const prompt = input.trim()
@@ -125,8 +157,13 @@ export default function Home() {
         setMessages(prev => [...prev, userMsg, aiMsg])
 
         try {
+            const mcpParams =
+                enabledMCPServers.length > 0
+                    ? `&mcpServers=${enabledMCPServers.join(',')}`
+                    : ''
+
             const res = await fetch(
-                `/api/chat/stream?q=${encodeURIComponent(prompt)}`,
+                `/api/chat/stream?q=${encodeURIComponent(prompt)}${mcpParams}`,
                 {
                     method: 'GET',
                     headers: { Accept: 'text/event-stream' },
@@ -160,12 +197,54 @@ export default function Home() {
                             assistantBuffer += evt.delta
                             setMessages(prev => {
                                 const next = [...prev]
+                                const lastMsg = next[next.length - 1]
                                 next[next.length - 1] = {
-                                    role: 'assistant',
+                                    ...lastMsg,
                                     content: assistantBuffer
                                 }
                                 return next
                             })
+                        } else if (evt.type === 'function_calls' && evt.calls) {
+                            setMessages(prev => {
+                                const next = [...prev]
+                                const lastMsg = next[next.length - 1]
+                                next[next.length - 1] = {
+                                    ...lastMsg,
+                                    functionCalls: evt.calls
+                                }
+                                return next
+                            })
+
+                            // 함수 호출 실행
+                            if (enabledMCPServers.length > 0) {
+                                executeFunctionCalls(
+                                    enabledMCPServers,
+                                    evt.calls
+                                )
+                                    .then(results => {
+                                        setMessages(prev => {
+                                            const next = [...prev]
+                                            const lastMsg =
+                                                next[next.length - 1]
+                                            next[next.length - 1] = {
+                                                ...lastMsg,
+                                                functionResults: results
+                                            }
+                                            return next
+                                        })
+                                    })
+                                    .catch(error => {
+                                        console.error('함수 실행 오류:', error)
+                                    })
+                            }
+                        } else if (
+                            evt.type === 'mcp_info' &&
+                            evt.enabledServers
+                        ) {
+                            console.log(
+                                '활성화된 MCP 서버:',
+                                evt.enabledServers
+                            )
                         } else if (evt.type === 'error') {
                             throw new Error(evt.message || '오류')
                         }
@@ -241,6 +320,16 @@ export default function Home() {
 
                 {currentTab === 'chat' ? (
                     <>
+                        <MCPToolsPanel
+                            enabledServers={enabledMCPServers}
+                            onToggleServer={handleToggleMCPServer}
+                        />
+
+                        <MCPDebugInfo
+                            enabledServers={enabledMCPServers}
+                            className="mb-4"
+                        />
+
                         <main className="flex-1 overflow-y-auto rounded-md border p-4 bg-white/50 dark:bg-black/20">
                             {messages.length === 0 ? (
                                 <div className="text-sm text-gray-500">
@@ -274,6 +363,20 @@ export default function Home() {
                                                 >
                                                     {m.role === 'assistant' ? (
                                                         <div className="markdown-body leading-relaxed text-sm">
+                                                            {m.functionCalls && (
+                                                                <FunctionCallResult
+                                                                    functionCalls={
+                                                                        m.functionCalls
+                                                                    }
+                                                                    results={
+                                                                        m.functionResults
+                                                                    }
+                                                                    loading={
+                                                                        isLastAssistant &&
+                                                                        !m.content
+                                                                    }
+                                                                />
+                                                            )}
                                                             <ReactMarkdown
                                                                 remarkPlugins={[
                                                                     remarkGfm
