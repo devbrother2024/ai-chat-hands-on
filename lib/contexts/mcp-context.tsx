@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { ConnectedMCPServer } from '@/lib/types/mcp'
 import { mcpClientManager } from '@/lib/mcp/client'
-import { MCPServerStorage } from '@/lib/mcp/storage'
+import { SupabaseMCPServerStorage } from '@/lib/supabase/storage'
 
 interface MCPContextType {
     connectedServers: ConnectedMCPServer[]
@@ -35,7 +35,7 @@ export function MCPProvider({ children }: { children: ReactNode }) {
                     )
                     if (serverInfo) {
                         const actualConfig =
-                            MCPServerStorage.getServer(serverId)
+                            await SupabaseMCPServerStorage.getServer(serverId)
                         if (actualConfig) {
                             return {
                                 ...serverInfo,

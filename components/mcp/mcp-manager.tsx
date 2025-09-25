@@ -15,7 +15,7 @@ import { Plus, AlertTriangle, Download, Upload } from 'lucide-react'
 import { MCPServerForm } from './mcp-server-form'
 import { MCPServerList } from './mcp-server-list'
 import { MCPServerDetails } from './mcp-server-details'
-import { MCPServerStorage } from '@/lib/mcp/storage'
+import { SupabaseMCPServerStorage } from '@/lib/supabase/storage'
 import { MCPServerConfig, ConnectedMCPServer } from '@/lib/types/mcp'
 import { mcpClientManager } from '@/lib/mcp/client'
 import { useMCP } from '@/lib/contexts/mcp-context'
@@ -35,13 +35,27 @@ export function MCPManager() {
         useState<ConnectedMCPServer | null>(null)
     const [isLoading, setIsLoading] = useState(false)
 
-    // localStorage에서 서버 목록 로드
+    // Supabase에서 서버 목록 로드
     useEffect(() => {
-        const loadedServers = MCPServerStorage.getAllServers()
-        setServers(loadedServers)
+        const loadServers = async () => {
+            try {
+                const loadedServers =
+                    await SupabaseMCPServerStorage.getAllServers()
+                setServers(loadedServers)
 
-        // 컨텍스트에서 연결 상태 새로고침
-        refreshConnections()
+                // 컨텍스트에서 연결 상태 새로고침
+                refreshConnections()
+            } catch (error) {
+                console.error('서버 목록 로드 실패:', error)
+                toast({
+                    title: '서버 목록 로드 실패',
+                    description: '서버 목록을 불러오는데 실패했습니다.',
+                    variant: 'destructive'
+                })
+            }
+        }
+
+        loadServers()
     }, [refreshConnections])
 
     const handleAddServer = () => {
@@ -57,11 +71,13 @@ export function MCPManager() {
     const handleSaveServer = async (config: MCPServerConfig) => {
         setIsLoading(true)
         try {
-            // localStorage에 저장
-            MCPServerStorage.saveServer(config)
+            // Supabase에 저장
+            await SupabaseMCPServerStorage.saveServer(config)
 
             // 상태 업데이트
-            setServers(MCPServerStorage.getAllServers())
+            const updatedServers =
+                await SupabaseMCPServerStorage.getAllServers()
+            setServers(updatedServers)
             setCurrentView('list')
 
             toast({
@@ -92,8 +108,10 @@ export function MCPManager() {
                 await handleDisconnectServer(serverId)
             }
 
-            MCPServerStorage.deleteServer(serverId)
-            setServers(MCPServerStorage.getAllServers())
+            await SupabaseMCPServerStorage.deleteServer(serverId)
+            const updatedServers =
+                await SupabaseMCPServerStorage.getAllServers()
+            setServers(updatedServers)
 
             toast({
                 title: '서버 삭제 완료',
@@ -116,16 +134,18 @@ export function MCPManager() {
             console.log(`${server.name} 서버에 연결을 시도합니다...`)
             const connectedServer = await mcpClientManager.connectServer(server)
 
-            const updatedServers = connectedServers.filter(
+            const filteredConnectedServers = connectedServers.filter(
                 cs => cs.config.id !== server.id
             )
-            setConnectedServers([...updatedServers, connectedServer])
+            setConnectedServers([...filteredConnectedServers, connectedServer])
 
-            MCPServerStorage.updateServerStatus(
+            await SupabaseMCPServerStorage.updateServerStatus(
                 server.id,
                 connectedServer.isConnected
             )
-            setServers(MCPServerStorage.getAllServers())
+            const updatedServers =
+                await SupabaseMCPServerStorage.getAllServers()
+            setServers(updatedServers)
 
             if (connectedServer.isConnected) {
                 toast({
@@ -158,8 +178,10 @@ export function MCPManager() {
                 connectedServers.filter(cs => cs.config.id !== serverId)
             )
 
-            MCPServerStorage.updateServerStatus(serverId, false)
-            setServers(MCPServerStorage.getAllServers())
+            await SupabaseMCPServerStorage.updateServerStatus(serverId, false)
+            const updatedServers =
+                await SupabaseMCPServerStorage.getAllServers()
+            setServers(updatedServers)
 
             toast({
                 title: '서버 연결 해제',
@@ -216,9 +238,9 @@ export function MCPManager() {
         )
     }
 
-    const handleExportServers = () => {
+    const handleExportServers = async () => {
         try {
-            const data = MCPServerStorage.exportServers()
+            const data = await SupabaseMCPServerStorage.exportServers()
             const blob = new Blob([data], { type: 'application/json' })
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
@@ -251,11 +273,13 @@ export function MCPManager() {
         if (!file) return
 
         const reader = new FileReader()
-        reader.onload = e => {
+        reader.onload = async e => {
             try {
                 const data = e.target?.result as string
-                MCPServerStorage.importServers(data)
-                setServers(MCPServerStorage.getAllServers())
+                await SupabaseMCPServerStorage.importServers(data)
+                const updatedServers =
+                    await SupabaseMCPServerStorage.getAllServers()
+                setServers(updatedServers)
 
                 toast({
                     title: '가져오기 완료',
