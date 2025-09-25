@@ -30,6 +30,8 @@ type ChatMessage = {
             content?: Array<{
                 type: string
                 text?: string
+                data?: string
+                mimeType?: string
             }>
             isError?: boolean
         }

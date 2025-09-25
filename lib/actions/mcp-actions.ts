@@ -236,10 +236,44 @@ export async function callMCPTool(
 
         const content = Array.isArray(result.content) ? result.content : []
         return {
-            content: content.map((item: unknown) => ({
-                type: 'text' as const,
-                text: typeof item === 'string' ? item : JSON.stringify(item)
-            })),
+            content: content.map((item: unknown) => {
+                // 이미지 컨텐츠인 경우 원본 데이터 유지
+                if (
+                    item &&
+                    typeof item === 'object' &&
+                    'type' in item &&
+                    item.type === 'image'
+                ) {
+                    const imageItem = item as {
+                        type: 'image'
+                        data?: string
+                        mimeType?: string
+                    }
+                    return {
+                        type: 'image' as const,
+                        data: imageItem.data,
+                        mimeType: imageItem.mimeType
+                    }
+                }
+                // 텍스트 컨텐츠인 경우
+                if (
+                    item &&
+                    typeof item === 'object' &&
+                    'type' in item &&
+                    item.type === 'text'
+                ) {
+                    const textItem = item as { type: 'text'; text?: string }
+                    return {
+                        type: 'text' as const,
+                        text: textItem.text
+                    }
+                }
+                // 기타 모든 타입은 텍스트로 변환
+                return {
+                    type: 'text' as const,
+                    text: typeof item === 'string' ? item : JSON.stringify(item)
+                }
+            }),
             isError: Boolean(result.isError)
         }
     } catch (error) {

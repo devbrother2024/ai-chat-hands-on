@@ -3,6 +3,7 @@
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Wrench, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import Image from 'next/image'
 
 interface FunctionCall {
     id?: string
@@ -14,6 +15,8 @@ interface FunctionResult {
     content?: Array<{
         type: string
         text?: string
+        data?: string
+        mimeType?: string
     }>
     isError?: boolean
 }
@@ -108,6 +111,32 @@ export function FunctionCallResult({
                                                             {item.text}
                                                         </pre>
                                                     )}
+                                                    {item.type === 'image' &&
+                                                        item.data && (
+                                                            <div className="space-y-2">
+                                                                <div className="text-xs text-gray-600 dark:text-gray-400">
+                                                                    생성된
+                                                                    이미지:
+                                                                </div>
+                                                                <Image
+                                                                    src={`data:${
+                                                                        item.mimeType ||
+                                                                        'image/png'
+                                                                    };base64,${
+                                                                        item.data
+                                                                    }`}
+                                                                    alt="Generated image"
+                                                                    width={400}
+                                                                    height={400}
+                                                                    className="max-w-full h-auto rounded border"
+                                                                    style={{
+                                                                        maxHeight:
+                                                                            '400px'
+                                                                    }}
+                                                                    unoptimized
+                                                                />
+                                                            </div>
+                                                        )}
                                                 </div>
                                             )
                                         )
